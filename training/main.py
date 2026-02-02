@@ -286,7 +286,17 @@ def main(
     # Import model here to avoid circular imports
     from model.transformer_model import TransformerModel
     
-    model = TransformerModel(config, vocab_size).to(config.device)
+    model = TransformerModel(
+        vocab_size=vocab_size,
+        d_model=config.d_model,
+        n_heads=config.n_heads,
+        n_kv_heads=config.n_kv_heads,
+        d_ff=config.d_ff,
+        dropout=config.dropout,
+        rope_base=config.rope_base,
+        num_enc_layers=config.num_encoder_layers,
+        num_dec_layers=config.num_decoder_layers,
+    ).to(config.device)
     print(f"Model params: {sum(p.numel() for p in model.parameters() if p.requires_grad):,}")
     
     train_stats = train_translation_model(
