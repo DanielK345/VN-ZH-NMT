@@ -1,0 +1,19 @@
+# Core dependencies
+torch>=1.9.0
+numpy>=1.19.0
+pandas>=1.1.0
+
+# NLP and tokenization
+sentencepiece>=0.1.96
+sacrebleu>=1.5.0
+
+# Utilities
+tqdm>=4.50.0
+
+# Optional: for GPU support
+# torch-cuda-toolkit  # Install separately based on your CUDA version
+
+# Development (optional)
+pytest>=6.0.0
+black>=21.0.0
+flake8>=3.9.0
