@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from model.layers import RMSNorm
+from model.layers.RMSNorm import RMSNorm
 from model.layers.FFN import FFN_SwiGLU
 from model.layers.GQA_with_RoPE import GroupedQueryAttentionRoPE
 
