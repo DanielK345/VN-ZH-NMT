@@ -107,14 +107,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path.cwd()))
 
 from inference import Translator
-from training.utils import evaluate
 
 print("Loading model...")
-translator = Translator(checkpoint_path="CHECKPOINT_PATH")
+translator = Translator(checkpoint_path="$CHECKPOINT")
 print("Model loaded successfully")
 print("")
-
-# Calculate metrics
+print("Note: Full evaluation with metrics requires reference file and proper setup")
 print("Evaluation completed")
 PYTHON_SCRIPT
 

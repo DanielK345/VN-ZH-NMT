@@ -16,10 +16,6 @@ NC='\033[0m' # No Color
 # Default values
 SKIP_TRAINING=false
 FORCE_REPROCESS=false
-RESUME_FROM=""
-NUM_EPOCHS=40
-BATCH_SIZE=128
-LR=0.0002
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -54,13 +50,19 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --skip-training           Skip model training (data processing only)"
             echo "  --force-reprocess         Force reprocessing of all data"
-            echo "  --resume CHECKPOINT       Resume training from checkpoint"
-            echo "  --epochs NUM              Number of epochs (default: 40)"
-            echo "  --batch-size SIZE         Batch size (default: 128)"
-            echo "  --lr LEARNING_RATE        Learning rate (default: 0.0002)"
             echo "  --help                    Show this help message"
             echo ""
+            echo "Customizing Hyperparameters:"
+            echo "  Edit training/config.py to change epochs, batch_size, and learning rate"
+            echo "  Example: RopeConfig(num_epochs=40, batch_size=128, lr=0.0002)"
+            echo ""
             exit 0
+            ;;
+        --epochs|--batch-size|--lr|--resume)
+            echo -e "${YELLOW}⚠️  Note: These options are no longer supported.${NC}"
+            echo "Hyperparameters are configured in training/config.py instead."
+            echo "Edit that file to customize training settings."
+            exit 1
             ;;
         *)
             echo "Unknown option: $1"
@@ -93,21 +95,16 @@ echo ""
 
 # Display configuration
 echo -e "${YELLOW}Training Configuration:${NC}"
-echo "  Epochs:           $NUM_EPOCHS"
-echo "  Batch size:       $BATCH_SIZE"
-echo "  Learning rate:    $LR"
 echo "  Skip training:    $SKIP_TRAINING"
 echo "  Force reprocess:  $FORCE_REPROCESS"
-if [ -n "$RESUME_FROM" ]; then
-    echo "  Resume from:      $RESUME_FROM"
-fi
+echo ""
+echo -e "${YELLOW}Note:${NC} Hyperparameters (epochs, batch_size, lr) are configured in training/config.py"
 echo ""
 
 # Build Python command
-PYTHON_CMD="python -m training.main"
-PYTHON_CMD="$PYTHON_CMD --num_epochs $NUM_EPOCHS"
-PYTHON_CMD="$PYTHON_CMD --batch_size $BATCH_SIZE"
-PYTHON_CMD="$PYTHON_CMD --lr $LR"
+# Note: Hyperparameters (epochs, batch_size, lr) are configured in training/config.py
+# The CLI only supports the following arguments: --base_dir, --force_reprocess, --skip_training
+PYTHON_CMD="python -m training.main --base_dir ."
 
 if [ "$SKIP_TRAINING" = true ]; then
     PYTHON_CMD="$PYTHON_CMD --skip_training"
@@ -115,10 +112,6 @@ fi
 
 if [ "$FORCE_REPROCESS" = true ]; then
     PYTHON_CMD="$PYTHON_CMD --force_reprocess"
-fi
-
-if [ -n "$RESUME_FROM" ]; then
-    PYTHON_CMD="$PYTHON_CMD --resume_from $RESUME_FROM"
 fi
 
 # Run training

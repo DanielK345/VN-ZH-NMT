@@ -21,7 +21,6 @@ BEAM_SIZE=3
 TOP_K=5
 LENGTH_PENALTY=0.6
 BATCH_SIZE=32
-DEVICE="cuda"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -52,10 +51,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --batch-size)
             BATCH_SIZE="$2"
-            shift 2
-            ;;
-        --device)
-            DEVICE="$2"
             shift 2
             ;;
         --greedy)
@@ -129,7 +124,6 @@ echo "  Beam size:        $BEAM_SIZE"
 echo "  Top-k:            $TOP_K"
 echo "  Length penalty:   $LENGTH_PENALTY"
 echo "  Batch size:       $BATCH_SIZE"
-echo "  Device:           $DEVICE"
 echo ""
 
 # Count input lines
@@ -147,8 +141,7 @@ python -m inference.main \
     --beam_size "$BEAM_SIZE" \
     --top_k "$TOP_K" \
     --length_penalty "$LENGTH_PENALTY" \
-    --batch_size "$BATCH_SIZE" \
-    --device "$DEVICE"
+    --batch_size "$BATCH_SIZE"
 
 EXITCODE=$?
 
