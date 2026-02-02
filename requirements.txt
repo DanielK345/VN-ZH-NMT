@@ -10,10 +10,6 @@ sacrebleu>=1.5.0
 # Utilities
 tqdm>=4.50.0
 
-# Optional: for GPU support
-# torch-cuda-toolkit  # Install separately based on your CUDA version
+# Web interface
+streamlit>=1.28.0
 
-# Development (optional)
-pytest>=6.0.0
-black>=21.0.0
-flake8>=3.9.0

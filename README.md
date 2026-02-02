@@ -8,6 +8,7 @@ A state-of-the-art neural machine translation system for bidirectional Vietnames
 - [Model Architecture](#model-architecture)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Streamlit Web App](#streamlit-web-app)
 - [Using Orchestration Scripts](#using-orchestration-scripts)
 - [Training](#training)
 - [Inference](#inference)
@@ -255,7 +256,83 @@ python -m inference.main \
 ```
 
 ---
+## 🌐 Streamlit Web App
 
+For an interactive translation interface, use the built-in Streamlit app:
+
+### Launch Web App
+
+```bash
+streamlit run app.py
+```
+
+The app will open in your browser at `http://localhost:8501`
+
+### Features
+
+**Tab 1: Single Translation**
+- Select source language (Chinese or Vietnamese)
+- Enter text to translate
+- Choose decoding strategy (beam search or greedy)
+- Adjust beam size (1-10) for quality-speed tradeoff
+- View results side-by-side
+- Copy translation to clipboard
+
+**Tab 2: Batch Translation**
+- Paste multiple sentences (one per line)
+- Or upload a .txt file
+- Process large batches efficiently
+- Download results as CSV
+- View all translations in a table
+
+**Tab 3: About**
+- Model architecture details
+- Configuration information
+- Performance benchmarks
+- System information (GPU/CPU, device name)
+- Links to documentation
+
+### Example Usage
+
+```bash
+# Install Streamlit (included in requirements.txt)
+pip install -r requirements.txt
+
+# Train model (generates best_model.pt)
+bash scripts/train.sh
+
+# Launch web app
+streamlit run app.py
+```
+
+### Screenshot Guide
+
+1. **Translate Chinese to Vietnamese:**
+   - Select "Chinese (中文)"
+   - Enter: "这是一个很好的例子。"
+   - Click "Translate"
+   - See Vietnamese translation
+
+2. **Translate Vietnamese to Chinese:**
+   - Select "Vietnamese (Tiếng Việt)"
+   - Enter: "Đây là một ví dụ tốt."
+   - Click "Translate"
+   - See Chinese translation
+
+3. **Batch Translation:**
+   - Go to "Batch Translation" tab
+   - Paste multiple sentences
+   - Download results as CSV
+
+### Performance Tips
+
+- **GPU**: Translations appear instantly
+- **CPU**: Translations may take a few seconds
+- **Beam Search**: Higher quality but slower (3-5x)
+- **Greedy**: Faster but lower quality
+- **Batch Processing**: Most efficient for large files
+
+---
 ## � Using Orchestration Scripts
 
 For easier project management, use the provided bash scripts in the `scripts/` folder:
