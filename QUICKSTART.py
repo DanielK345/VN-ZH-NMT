@@ -94,6 +94,17 @@ infer_config = InferenceConfig(
 # ======================
 
 from inference.decoder import greedy_decode, beam_search_decode
+from inference.model import load_model_from_checkpoint
+import torch
+
+# Load checkpoint and prepare inputs
+model, sp_model, config = load_model_from_checkpoint(
+    "checkpoints_bidirectional/best_model.pt"
+)
+
+# Tokenize source text
+src_text = "这是一个测试句子。"
+src_ids = torch.tensor([sp_model.EncodeAsIds(src_text)])
 
 # Fast greedy decoding
 translations = greedy_decode(
@@ -126,7 +137,10 @@ processor.train_tokenizer(
     vocab_size=8000,
 )
 
-# Filter data
+# Load and filter data
+src_lines = processor.load_lines("dataset/train/train.zh")
+tgt_lines = processor.load_lines("dataset/train/train.vi")
+
 src, tgt = processor.filter_by_token_length(
     src_lines, tgt_lines
 )
@@ -138,35 +152,48 @@ processor.save_cleaned_data(src, tgt, "clean_data")
 # 7. MODELS AND LAYERS
 # ====================
 
-from inference.model import TransformerInference, load_model_from_checkpoint
+from inference.model import load_model_from_checkpoint
 from model.transformer_model import TransformerModel
+from training.config import RopeConfig
+import torch
 
 # Load from checkpoint
 model, sp_model, config = load_model_from_checkpoint(
     "checkpoints_bidirectional/best_model.pt"
 )
 
-# Create new model
-import torch
-from training.config import RopeConfig
-
-config = RopeConfig(...)
-model = TransformerModel(config, vocab_size=8000)
-model = model.to(config.device)
+# Create new model from scratch
+new_config = RopeConfig(
+    batch_size=128,
+    num_epochs=40,
+    lr_base=2e-4,
+    vocab_size=8000
+)
+new_model = TransformerModel(new_config, vocab_size=8000)
+new_model = new_model.to(new_config.device)
 
 
 # 8. TRAINING LOOP
 # ================
 
 from training.trainer import Trainer
+from training.main import main
+import torch
 
-trainer = Trainer(model, config, tokenizer_payload)
+# Option 1: Run full training pipeline (recommended)
+stats = main(base_dir=".", skip_training=False)
 
-# Train
-stats = trainer.train(train_dataset, valid_loader, sp_model)
+# Option 2: Manual training loop (if you have data and model)
+# from training.data_loader import build_train_loader
+# 
+# trainer = Trainer(model, config, tokenizer_payload)
+# train_dataset = build_train_loader(config, sp_model)
+# valid_dataset = build_train_loader(config, sp_model)
+# 
+# stats = trainer.train(train_dataset, valid_dataset, sp_model)
 
-# Save checkpoint
-trainer.save_checkpoint(epoch=40, train_loss=2.1, val_loss=2.5, val_bleu=28.5)
+# Save checkpoint after training
+# trainer.save_checkpoint(epoch=40, train_loss=2.1, val_loss=2.5, val_bleu=28.5)
 
 # Load checkpoint
 checkpoint = trainer.load_checkpoint("checkpoints_bidirectional/best_model.pt")
@@ -176,15 +203,27 @@ checkpoint = trainer.load_checkpoint("checkpoints_bidirectional/best_model.pt")
 # =============
 
 from training.utils import evaluate
+from inference.model import load_model_from_checkpoint
 
-val_loss, bleu = evaluate(
-    model, valid_loader, criterion, sp_model, config,
-    calculate_bleu=True,
-    max_bleu_samples=500
+# Load model and validation data
+model, sp_model, config = load_model_from_checkpoint(
+    "checkpoints_bidirectional/best_model.pt"
 )
 
-print(f"Validation Loss: {val_loss:.4f}")
-print(f"BLEU Score: {bleu:.2f}")
+# If you have a validation loader (from training)
+# from training.data_loader import build_train_loader
+# valid_loader = build_train_loader(config, sp_model)
+# 
+# criterion = torch.nn.CrossEntropyLoss(label_smoothing=config.label_smoothing)
+# 
+# val_loss, bleu = evaluate(
+#     model, valid_loader, criterion, sp_model, config,
+#     calculate_bleu=True,
+#     max_bleu_samples=500
+# )
+# 
+# print(f"Validation Loss: {val_loss:.4f}")
+# print(f"BLEU Score: {bleu:.2f}")
 
 
 # 10. HARDWARE REQUIREMENTS
@@ -250,7 +289,15 @@ import os
 import torch
 import sentencepiece as spm
 
-# Save checkpoint
+# Load model first
+from inference.model import load_model_from_checkpoint
+model, sp_model, config = load_model_from_checkpoint(
+    "checkpoints_bidirectional/best_model.pt"
+)
+
+# Save checkpoint (example with optimizer)
+optimizer = torch.optim.AdamW(model.parameters(), lr=config.lr_base)
+
 torch.save({
     'epoch': 40,
     'model_state_dict': model.state_dict(),
@@ -261,8 +308,9 @@ torch.save({
 # Load checkpoint
 checkpoint = torch.load('checkpoint.pt', map_location='cpu')
 model.load_state_dict(checkpoint['model_state_dict'])
+optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
-# Save tokenizer
+# Load tokenizer
 sp_model = spm.SentencePieceProcessor()
 sp_model.Load('tokenizer_train32/spm_zh_vi_joint.model')
 
