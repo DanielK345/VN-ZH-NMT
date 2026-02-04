@@ -9,7 +9,9 @@ sacrebleu>=1.5.0
 
 # Utilities
 tqdm>=4.50.0
+matplotlib>=3.3.0
 
 # Web interface
 streamlit>=1.28.0
+
 

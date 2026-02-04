@@ -60,6 +60,11 @@ class Trainer:
         os.makedirs(config.save_dir, exist_ok=True)
         self.best_val_loss = float("inf")
         self.best_val_bleu = 0.0
+        
+        # Track metrics for plotting
+        self.train_losses = []
+        self.val_losses = []
+        self.val_bleus = []
 
     def train_epoch(
         self,
@@ -166,6 +171,7 @@ class Trainer:
 
             # Train epoch
             train_loss = self.train_epoch(train_loader, epoch)
+            self.train_losses.append(train_loss)
 
             # Validate
             val_loss, val_bleu = evaluate(
@@ -177,6 +183,8 @@ class Trainer:
                 calculate_bleu=True,
                 max_bleu_samples=300,
             )
+            self.val_losses.append(val_loss)
+            self.val_bleus.append(val_bleu)
 
             print(f"\nEpoch {epoch}/{self.config.num_epochs}")
             print(f"  vi→zh coverage: {vi_slice_len}/{len(train_dataset.vi2zh_indices)} "
@@ -201,10 +209,38 @@ class Trainer:
         print("\nTraining finished.")
         print(f"Best valid loss: {self.best_val_loss:.4f} | Best BLEU: {self.best_val_bleu:.2f}")
 
+        # Plot training curves
+        from .utils import plot_training_loss, plot_metrics
+        import os
+        
+        figs_dir = os.path.join(os.path.dirname(os.path.dirname(self.config.save_dir)), "figs")
+        
+        # Plot loss curves
+        loss_plot = plot_training_loss(
+            self.train_losses,
+            self.val_losses,
+            output_dir=figs_dir,
+            filename="training_loss.png"
+        )
+        if loss_plot:
+            print(f"✓ Loss plot saved to {loss_plot}")
+        
+        # Plot BLEU scores
+        bleu_plot = plot_metrics(
+            {"BLEU Score": self.val_bleus},
+            output_dir=figs_dir,
+            filename="bleu_scores.png"
+        )
+        if bleu_plot:
+            print(f"✓ BLEU plot saved to {bleu_plot}")
+
         return {
             "best_val_loss": self.best_val_loss,
             "best_val_bleu": self.best_val_bleu,
             "save_dir": self.config.save_dir,
+            "train_losses": self.train_losses,
+            "val_losses": self.val_losses,
+            "val_bleus": self.val_bleus,
         }
 
     def load_checkpoint(self, checkpoint_path: str) -> Dict[str, Any]:

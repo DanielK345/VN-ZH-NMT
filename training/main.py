@@ -178,6 +178,7 @@ def train_translation_model(
     train_dataset: BidirectionalTranslationDataset,
     valid_loader: DataLoader,
     tokenizer_payload: Dict[str, Any],
+    resume_checkpoint: str = None,
 ) -> Dict[str, Any]:
     """
     Train translation model.
@@ -189,6 +190,7 @@ def train_translation_model(
         train_dataset: Training dataset
         valid_loader: Validation dataloader
         tokenizer_payload: Tokenizer payload
+        resume_checkpoint: Optional checkpoint to resume from
         
     Returns:
         Training statistics
@@ -199,6 +201,13 @@ def train_translation_model(
     
     trainer = Trainer(model, config, tokenizer_payload)
     
+    # Load optimizer and scheduler state if resuming
+    if resume_checkpoint and os.path.exists(resume_checkpoint):
+        checkpoint = torch.load(resume_checkpoint, map_location=config.device, weights_only=False)
+        if "optimizer_state_dict" in checkpoint:
+            trainer.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            print("✓ Optimizer state loaded successfully")
+    
     stats = trainer.train(train_dataset, valid_loader, sp_model)
     
     return stats
@@ -208,6 +217,7 @@ def main(
     base_dir: str = ".",
     force_reprocess: bool = False,
     skip_training: bool = False,
+    resume_checkpoint: str = None,
 ):
     """
     Main training pipeline.
@@ -216,6 +226,7 @@ def main(
         base_dir: Base directory for data and checkpoints
         force_reprocess: Force reprocessing of data
         skip_training: Skip training and only process data
+        resume_checkpoint: Path to checkpoint to resume training from
     """
     # Set random seeds
     set_seed(42)
@@ -299,8 +310,15 @@ def main(
     ).to(config.device)
     print(f"Model params: {sum(p.numel() for p in model.parameters() if p.requires_grad):,}")
     
+    # Resume from checkpoint if provided
+    if resume_checkpoint and os.path.exists(resume_checkpoint):
+        print(f"\n📂 Resuming from checkpoint: {resume_checkpoint}")
+        checkpoint = torch.load(resume_checkpoint, map_location=config.device, weights_only=False)
+        model.load_state_dict(checkpoint["model_state_dict"])
+        print("✓ Model state loaded successfully")
+    
     train_stats = train_translation_model(
-        model, config, sp_model, train_dataset, valid_loader, tokenizer_payload
+        model, config, sp_model, train_dataset, valid_loader, tokenizer_payload, resume_checkpoint
     )
     
     print("\n" + "="*80)
@@ -320,6 +338,7 @@ if __name__ == "__main__":
     parser.add_argument("--base_dir", type=str, default=".", help="Base directory")
     parser.add_argument("--force_reprocess", action="store_true", help="Force data reprocessing")
     parser.add_argument("--skip_training", action="store_true", help="Skip model training")
+    parser.add_argument("--resume_checkpoint", type=str, default=None, help="Path to checkpoint to resume training from")
     
     args = parser.parse_args()
     
@@ -327,4 +346,5 @@ if __name__ == "__main__":
         base_dir=args.base_dir,
         force_reprocess=args.force_reprocess,
         skip_training=args.skip_training,
+        resume_checkpoint=args.resume_checkpoint,
     )

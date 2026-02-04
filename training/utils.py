@@ -1,11 +1,12 @@
 """Training utilities: loss functions, schedulers, and decoding."""
 
+import os
 import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import sentencepiece as spm
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
 from tqdm import tqdm
 
@@ -13,6 +14,12 @@ try:
     import sacrebleu
 except ImportError:
     sacrebleu = None
+
+try:
+    import matplotlib.pyplot as plt
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
 
 from .config import RopeConfig
 
@@ -317,3 +324,138 @@ def evaluate(
             print(f"BLEU calculation failed: {err}")
 
     return avg_loss, bleu_score
+
+
+def plot_training_loss(
+    train_losses: List[float],
+    val_losses: List[float],
+    epochs: List[int] = None,
+    output_dir: str = "figs",
+    filename: str = "training_loss.png",
+) -> str:
+    """
+    Plot training and validation loss curves.
+    
+    Args:
+        train_losses: List of training losses per epoch
+        val_losses: List of validation losses per epoch
+        epochs: List of epoch numbers (default: auto-generated)
+        output_dir: Directory to save the plot
+        filename: Output filename
+        
+    Returns:
+        Path to saved plot
+    """
+    if not MATPLOTLIB_AVAILABLE:
+        print("⚠️  matplotlib not installed, skipping loss plot")
+        return None
+    
+    os.makedirs(output_dir, exist_ok=True)
+    
+    if epochs is None:
+        epochs = list(range(1, len(train_losses) + 1))
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(epochs, train_losses, marker='o', linestyle='-', label='Training Loss', linewidth=2)
+    plt.plot(epochs, val_losses, marker='s', linestyle='-', label='Validation Loss', linewidth=2)
+    
+    plt.xlabel('Epoch', fontsize=12)
+    plt.ylabel('Loss', fontsize=12)
+    plt.title('Training and Validation Loss Over Time', fontsize=14, fontweight='bold')
+    plt.legend(fontsize=11)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    
+    output_path = os.path.join(output_dir, filename)
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    return output_path
+
+
+def plot_metrics(
+    metrics_history: Dict[str, List[float]],
+    output_dir: str = "figs",
+    filename: str = "metrics.png",
+) -> str:
+    """
+    Plot multiple metrics (loss, BLEU, etc.) on separate subplots.
+    
+    Args:
+        metrics_history: Dictionary with metric names and their values over epochs
+        output_dir: Directory to save the plot
+        filename: Output filename
+        
+    Returns:
+        Path to saved plot
+    """
+    if not MATPLOTLIB_AVAILABLE:
+        print("⚠️  matplotlib not installed, skipping metrics plot")
+        return None
+    
+    os.makedirs(output_dir, exist_ok=True)
+    
+    num_metrics = len(metrics_history)
+    if num_metrics == 0:
+        return None
+    
+    fig, axes = plt.subplots(1, num_metrics, figsize=(6 * num_metrics, 5))
+    if num_metrics == 1:
+        axes = [axes]
+    
+    for idx, (metric_name, values) in enumerate(metrics_history.items()):
+        ax = axes[idx]
+        epochs = list(range(1, len(values) + 1))
+        
+        ax.plot(epochs, values, marker='o', linestyle='-', linewidth=2, color='steelblue')
+        ax.set_xlabel('Epoch', fontsize=11)
+        ax.set_ylabel(metric_name, fontsize=11)
+        ax.set_title(f'{metric_name} Over Time', fontsize=12, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    output_path = os.path.join(output_dir, filename)
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    return output_path
+
+
+def plot_learning_rate(
+    learning_rates: List[float],
+    output_dir: str = "figs",
+    filename: str = "learning_rate.png",
+) -> str:
+    """
+    Plot learning rate schedule over training steps.
+    
+    Args:
+        learning_rates: List of learning rates at each step
+        output_dir: Directory to save the plot
+        filename: Output filename
+        
+    Returns:
+        Path to saved plot
+    """
+    if not MATPLOTLIB_AVAILABLE:
+        print("⚠️  matplotlib not installed, skipping learning rate plot")
+        return None
+    
+    os.makedirs(output_dir, exist_ok=True)
+    
+    steps = list(range(len(learning_rates)))
+    
+    plt.figure(figsize=(12, 5))
+    plt.plot(steps, learning_rates, linestyle='-', linewidth=2, color='green')
+    
+    plt.xlabel('Training Step', fontsize=12)
+    plt.ylabel('Learning Rate', fontsize=12)
+    plt.title('Learning Rate Schedule During Training', fontsize=14, fontweight='bold')
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    
+    output_path = os.path.join(output_dir, filename)
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    return output_path

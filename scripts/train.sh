@@ -50,6 +50,7 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --skip-training           Skip model training (data processing only)"
             echo "  --force-reprocess         Force reprocessing of all data"
+            echo "  --resume CHECKPOINT       Resume training from checkpoint"
             echo "  --help                    Show this help message"
             echo ""
             echo "Customizing Hyperparameters:"
@@ -58,7 +59,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             exit 0
             ;;
-        --epochs|--batch-size|--lr|--resume)
+        --epochs|--batch-size|--lr)
             echo -e "${YELLOW}⚠️  Note: These options are no longer supported.${NC}"
             echo "Hyperparameters are configured in training/config.py instead."
             echo "Edit that file to customize training settings."
@@ -103,7 +104,7 @@ echo ""
 
 # Build Python command
 # Note: Hyperparameters (epochs, batch_size, lr) are configured in training/config.py
-# The CLI only supports the following arguments: --base_dir, --force_reprocess, --skip_training
+# The CLI only supports the following arguments: --base_dir, --force_reprocess, --skip_training, --resume_checkpoint
 PYTHON_CMD="python -m training.main --base_dir ."
 
 if [ "$SKIP_TRAINING" = true ]; then
@@ -112,6 +113,10 @@ fi
 
 if [ "$FORCE_REPROCESS" = true ]; then
     PYTHON_CMD="$PYTHON_CMD --force_reprocess"
+fi
+
+if [ -n "$RESUME_FROM" ]; then
+    PYTHON_CMD="$PYTHON_CMD --resume_checkpoint $RESUME_FROM"
 fi
 
 # Run training
