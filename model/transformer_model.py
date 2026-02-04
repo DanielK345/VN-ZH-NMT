@@ -7,23 +7,69 @@ from model.layers.Decoder import DecoderLayer
 import torch.nn.functional as F
 
 class TransformerModel(nn.Module):
-    def __init__(self, vocab_size, d_model, n_heads, n_kv_heads, d_ff, dropout,
-                 rope_base, num_enc_layers=8, num_dec_layers=8):
+    def __init__(self, config_or_vocab, vocab_size: int = None, **kwargs):
+        """
+        Flexible constructor that accepts either:
+          - (config: RopeConfig, vocab_size: int)  -- preferred (notebook style)
+          - (vocab_size, d_model, n_heads, n_kv_heads, d_ff, dropout, rope_base, ...)
+
+        To maintain backward compatibility, the constructor will attempt to
+        use `config_or_vocab` as a config object first; if that doesn't work
+        it will fall back to the older argument-style construction.
+        """
         super().__init__()
+
+        # Determine construction mode
+        if vocab_size is not None:
+            # Assume notebook/config style: (config, vocab_size)
+            config = config_or_vocab
+            self.config = config
+            d_model = config.d_model
+            n_heads = config.n_heads
+            n_kv_heads = config.n_kv_heads
+            d_ff = config.d_ff
+            dropout = config.dropout
+            rope_base = config.rope_base
+            num_enc_layers = config.num_encoder_layers
+            num_dec_layers = config.num_decoder_layers
+            vocab_size = vocab_size
+        else:
+            # Fallback: older signature where config_or_vocab is actually vocab_size
+            vocab_size = config_or_vocab
+            d_model = kwargs.get("d_model")
+            n_heads = kwargs.get("n_heads")
+            n_kv_heads = kwargs.get("n_kv_heads")
+            d_ff = kwargs.get("d_ff")
+            dropout = kwargs.get("dropout")
+            rope_base = kwargs.get("rope_base")
+            num_enc_layers = kwargs.get("num_enc_layers", 8)
+            num_dec_layers = kwargs.get("num_dec_layers", 8)
+
         self.d_model = d_model
         self.embedding = nn.Embedding(vocab_size, d_model, padding_idx=0)
         self.emb_dropout = nn.Dropout(dropout)
 
-        self.encoder_layers = nn.ModuleList([
-            EncoderLayer(d_model, n_heads, n_kv_heads, d_ff, dropout, rope_base)
-            for _ in range(num_enc_layers)
-        ])
+        # Try to instantiate encoder/decoder layers using the "config" style
+        self.encoder_layers = nn.ModuleList()
+        self.decoder_layers = nn.ModuleList()
+        for _ in range(num_enc_layers):
+            try:
+                # If EncoderLayer accepts a single config arg (notebook style)
+                layer = EncoderLayer(config)
+            except Exception:
+                # Fallback to positional args
+                layer = EncoderLayer(d_model, n_heads, n_kv_heads, d_ff, dropout, rope_base)
+            self.encoder_layers.append(layer)
+
         self.encoder_final_ln = RMSNorm(d_model)
 
-        self.decoder_layers = nn.ModuleList([
-            DecoderLayer(d_model, n_heads, n_kv_heads, d_ff, dropout, rope_base)
-            for _ in range(num_dec_layers)
-        ])
+        for _ in range(num_dec_layers):
+            try:
+                layer = DecoderLayer(config)
+            except Exception:
+                layer = DecoderLayer(d_model, n_heads, n_kv_heads, d_ff, dropout, rope_base)
+            self.decoder_layers.append(layer)
+
         self.decoder_final_ln = RMSNorm(d_model)
 
         self.output_bias = nn.Parameter(torch.zeros(vocab_size))
