@@ -205,8 +205,53 @@ def train_translation_model(
     if resume_checkpoint and os.path.exists(resume_checkpoint):
         checkpoint = torch.load(resume_checkpoint, map_location=config.device, weights_only=False)
         if "optimizer_state_dict" in checkpoint:
-            trainer.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-            print("✓ Optimizer state loaded successfully")
+            try:
+                trainer.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+
+                # Validate optimizer state shapes against current model params
+                invalid = False
+                for group in trainer.optimizer.param_groups:
+                    for p in group.get("params", []):
+                        st = trainer.optimizer.state.get(p, {})
+                        for k, v in st.items():
+                            if isinstance(v, torch.Tensor):
+                                if v.shape != p.data.shape:
+                                    invalid = True
+                                    break
+                        if invalid:
+                            break
+                    if invalid:
+                        break
+
+                if invalid:
+                    print("⚠️  Optimizer state incompatible with current model (shape mismatch). Reinitializing optimizer and scheduler.")
+                    # Recreate optimizer and scheduler (drop momentum) to avoid crashes
+                    import torch.optim as optim
+                    trainer.optimizer = optim.AdamW(
+                        trainer.model.parameters(),
+                        lr=config.lr_base,
+                        betas=(0.9, 0.98),
+                        eps=1e-9,
+                        weight_decay=config.weight_decay,
+                    )
+                    trainer.scheduler = WarmupInverseSqrtScheduler(
+                        trainer.optimizer, config.warmup_steps, config.lr_base
+                    )
+                else:
+                    print("✓ Optimizer state loaded successfully")
+            except Exception as e:
+                print(f"⚠️  Failed to load optimizer state: {e}. Reinitializing optimizer and scheduler.")
+                import torch.optim as optim
+                trainer.optimizer = optim.AdamW(
+                    trainer.model.parameters(),
+                    lr=config.lr_base,
+                    betas=(0.9, 0.98),
+                    eps=1e-9,
+                    weight_decay=config.weight_decay,
+                )
+                trainer.scheduler = WarmupInverseSqrtScheduler(
+                    trainer.optimizer, config.warmup_steps, config.lr_base
+                )
     
     stats = trainer.train(train_dataset, valid_loader, sp_model)
     
