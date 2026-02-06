@@ -291,29 +291,80 @@ The app will open in your browser at `http://localhost:8501`
 - Performance benchmarks
 - System information (GPU/CPU, device name)
 - Links to documentation
+- Links to Hugging Face model (if using HF)
+
+### Model Sources
+
+The app supports loading models from two sources:
+
+#### 1. **Local Checkpoint** (Default)
+- Uses trained model from `checkpoints_bidirectional/best_model.pt`
+- Requires training first: `bash scripts/train.sh`
+- Fastest loading, no download needed
+
+#### 2. **Hugging Face Hub**
+- Download pre-trained models directly from Hugging Face Hub
+- Select from predefined models or enter custom repo ID
+- Automatic caching of downloaded models
+- Easy sharing and collaboration
+
+### Using Hugging Face Models
+
+1. **Select "Hugging Face Hub" in the sidebar**
+2. **Choose a model:**
+   - Use predefined model: "Official VN-ZH"
+   - Or select "Custom Model" and enter repo ID (e.g., `username/vn-zh-translation`)
+3. **Model will auto-download on first use**
+
+### Upload Your Model to Hugging Face
+
+Share your trained models with the community:
+
+```bash
+bash scripts/upload.sh \
+    --checkpoint checkpoints_bidirectional/best_model.pt \
+    --repo-id username/vn-zh-translation
+```
+
+Then use it in the app by entering the repo ID as a custom model.
+
+See [HF_UPLOAD_GUIDE.md](HF_UPLOAD_GUIDE.md) for detailed instructions.
 
 ### Example Usage
 
 ```bash
-# Install Streamlit (included in requirements.txt)
+# Install dependencies (includes huggingface-hub)
 pip install -r requirements.txt
 
-# Train model (generates best_model.pt)
+# Option 1: Train model locally
 bash scripts/train.sh
 
 # Launch web app
 streamlit run app.py
+
+# In the app, select "Local" model source
+```
+
+```bash
+# Option 2: Use pre-trained model from Hugging Face
+streamlit run app.py
+
+# In the app, select "Hugging Face Hub" model source
+# Choose a predefined model or enter custom repo ID
 ```
 
 ### Screenshot Guide
 
-1. **Translate Chinese to Vietnamese:**
+1. **Translate Chinese to Vietnamese (Local Model):**
+   - Select "Local" model source
    - Select "Chinese (中文)"
    - Enter: "这是一个很好的例子。"
    - Click "Translate"
    - See Vietnamese translation
 
-2. **Translate Vietnamese to Chinese:**
+2. **Translate Vietnamese to Chinese (HF Model):**
+   - Select "Hugging Face Hub" model source
+   - Choose or enter model repo ID
    - Select "Vietnamese (Tiếng Việt)"
    - Enter: "Đây là một ví dụ tốt."
    - Click "Translate"

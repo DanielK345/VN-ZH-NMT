@@ -10,11 +10,18 @@ import streamlit as st
 import torch
 from pathlib import Path
 import sys
+import tempfile
 
 # Add project to path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from inference import Translator
+
+try:
+    from huggingface_hub import hf_hub_download, list_repo_files
+except ImportError:
+    st.error("Missing huggingface_hub. Install with: pip install huggingface-hub")
+    st.stop()
 
 
 # Page config
@@ -49,10 +56,30 @@ st.markdown("""
 
 
 @st.cache_resource
-def load_model():
-    """Load model once and cache it."""
-    checkpoint_path = "checkpoints_bidirectional/best_model.pt"
+def download_model_from_hub(repo_id: str, cache_dir: str = None):
+    """Download model from Hugging Face Hub."""
+    if cache_dir is None:
+        cache_dir = os.path.join(tempfile.gettempdir(), "hf_models")
     
+    os.makedirs(cache_dir, exist_ok=True)
+    
+    try:
+        with st.spinner(f"Downloading model from {repo_id}..."):
+            checkpoint_path = hf_hub_download(
+                repo_id=repo_id,
+                filename="model.pt",
+                cache_dir=cache_dir,
+                force_download=False
+            )
+        return checkpoint_path
+    except Exception as e:
+        st.error(f"❌ Failed to download model: {e}")
+        return None
+
+
+@st.cache_resource
+def load_model_local(checkpoint_path: str):
+    """Load model from local checkpoint."""
     if not os.path.exists(checkpoint_path):
         st.error(f"❌ Checkpoint not found at {checkpoint_path}")
         st.info("Please train the model first using: bash scripts/train.sh")
@@ -66,6 +93,25 @@ def load_model():
     except Exception as e:
         st.error(f"❌ Error loading model: {e}")
         return None
+
+
+@st.cache_resource
+def load_model():
+    """Load model from selected source (local or HuggingFace)."""
+    # Check if HF model is configured via sidebar
+    if "model_source" not in st.session_state:
+        st.session_state.model_source = "local"
+    
+    if "hf_repo_id" not in st.session_state:
+        st.session_state.hf_repo_id = None
+    
+    if st.session_state.model_source == "huggingface" and st.session_state.hf_repo_id:
+        checkpoint_path = download_model_from_hub(st.session_state.hf_repo_id)
+        if checkpoint_path:
+            return load_model_local(checkpoint_path)
+    else:
+        checkpoint_path = "checkpoints_bidirectional/best_model.pt"
+        return load_model_local(checkpoint_path)
 
 
 def translate_text(translator, text, src_lang, use_beam_search):
@@ -84,6 +130,83 @@ def translate_text(translator, text, src_lang, use_beam_search):
 
 
 def main():
+    # Sidebar - Model selection
+    with st.sidebar:
+        st.header("⚙️ Model Settings")
+        
+        model_source = st.radio(
+            "Model Source",
+            ["Local", "Hugging Face Hub"],
+            key="model_source_radio"
+        )
+        
+        st.session_state.model_source = "huggingface" if model_source == "Hugging Face Hub" else "local"
+        
+        if model_source == "Hugging Face Hub":
+            st.markdown("### Hugging Face Model")
+            
+            # Option 1: Predefined models
+            predefined_models = {
+                "Official VN-ZH": "duyquang/vn-zh-translation",
+                "Custom Model": None
+            }
+            
+            selected_model = st.selectbox(
+                "Select Model",
+                options=list(predefined_models.keys()),
+                key="hf_model_select"
+            )
+            
+            if predefined_models[selected_model]:
+                st.session_state.hf_repo_id = predefined_models[selected_model]
+                st.caption(f"📦 {st.session_state.hf_repo_id}")
+            else:
+                # Option 2: Custom model input
+                custom_repo_id = st.text_input(
+                    "Enter Hugging Face repo ID",
+                    placeholder="username/repo-name",
+                    key="hf_custom_repo"
+                )
+                if custom_repo_id:
+                    st.session_state.hf_repo_id = custom_repo_id
+                    st.caption(f"📦 {custom_repo_id}")
+                else:
+                    st.warning("Please enter a valid Hugging Face repo ID")
+        else:
+            st.markdown("### Local Model")
+            st.session_state.hf_repo_id = None
+            local_path = st.text_input(
+                "Checkpoint path",
+                value="checkpoints_bidirectional/best_model.pt",
+                key="local_model_path"
+            )
+            if local_path != "checkpoints_bidirectional/best_model.pt":
+                # Update if user changes path
+                pass
+        
+        st.divider()
+        
+        # Help section
+        with st.expander("ℹ️ Model Sources Help", expanded=False):
+            st.markdown("""
+            **Local Model**
+            - Uses checkpoint from `checkpoints_bidirectional/best_model.pt`
+            - Requires model to be trained first
+            - Fastest loading time
+            
+            **Hugging Face Hub**
+            - Downloads from Hugging Face model hub
+            - Automatic caching of models
+            - Easy sharing and collaboration
+            
+            **How to upload your model:**
+            ```bash
+            bash scripts/upload.sh \\
+                --checkpoint checkpoints_bidirectional/best_model.pt \\
+                --repo-id username/repo-name
+            ```
+            """)
+    
     # Header
     st.markdown("<div class='title'>", unsafe_allow_html=True)
     st.title("🌐 Vietnamese-Chinese Machine Translation")
@@ -261,6 +384,14 @@ def main():
     with tab3:
         st.header("About this Translation System")
         
+        # Model source info
+        if st.session_state.model_source == "huggingface" and st.session_state.hf_repo_id:
+            st.info(f"📦 **Model Source**: Hugging Face Hub")
+            st.code(f"{st.session_state.hf_repo_id}")
+            st.markdown(f"🔗 View on [Hugging Face](https://huggingface.co/{st.session_state.hf_repo_id})")
+        else:
+            st.info("📦 **Model Source**: Local Checkpoint")
+        
         st.markdown("""
         ### Model Architecture
         
@@ -284,6 +415,9 @@ def main():
         ### Features
         
         - **Bidirectional**: Chinese ↔ Vietnamese translation
+        - **Model Sources**: 
+          - Local checkpoint
+          - Hugging Face Hub
         - **Decoding Strategies**: 
           - Greedy (fast)
           - Beam Search (high quality)
@@ -291,10 +425,23 @@ def main():
         
         ### How to Use
         
-        1. Select source language
-        2. Enter text to translate
-        3. Choose decoding strategy
-        4. Click "Translate"
+        1. Select model source (Local or Hugging Face)
+        2. Select source language
+        3. Enter text to translate
+        4. Choose decoding strategy
+        5. Click "Translate"
+        
+        ### Sharing Your Model
+        
+        Upload your trained model to Hugging Face Hub:
+        
+        ```bash
+        bash scripts/upload.sh \\
+            --checkpoint checkpoints_bidirectional/best_model.pt \\
+            --repo-id username/repo-name
+        ```
+        
+        Then use it here by selecting "Custom Model" and entering your repo ID.
         
         ### Performance
         
@@ -308,12 +455,13 @@ def main():
         - [README.md](../README.md) - Complete guide
         - [scripts/README.md](../scripts/README.md) - Script documentation
         - [QUICKSTART.py](../QUICKSTART.py) - Code examples
+        - [HF_UPLOAD_GUIDE.md](../HF_UPLOAD_GUIDE.md) - How to upload models
         
         ---
         
-        **Version**: 1.0.0  
-        **Date**: February 2, 2026  
-        **Status**: ✅ Production Ready
+        **Version**: 1.1.0  
+        **Date**: February 6, 2026  
+        **Status**: ✅ Production Ready with HF Hub Support
         """)
         
         # Model info
