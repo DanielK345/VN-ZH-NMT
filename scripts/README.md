@@ -82,7 +82,55 @@ You can override epochs and learning rate for any training:
 
 ---
 
-### 🔮 `inference.sh` - Model Inference
+### � `upload.sh` - Upload Model to Hugging Face Hub
+Upload trained model checkpoint to Hugging Face Hub.
+
+```bash
+# Upload best model to public repo
+bash scripts/upload.sh \
+    --checkpoint checkpoints_bidirectional/best_model.pt \
+    --repo-id username/vn-zh-translation
+
+# Upload to private repo with custom description
+bash scripts/upload.sh \
+    --checkpoint checkpoints_bidirectional/best_model.pt \
+    --repo-id username/vn-zh-translation \
+    --private \
+    --description "Improved model with curriculum learning v2"
+
+# Upload with explicit token
+bash scripts/upload.sh \
+    --checkpoint checkpoints_bidirectional/best_model.pt \
+    --repo-id username/vn-zh-translation \
+    --token $HF_TOKEN
+```
+
+**Options:**
+- `--checkpoint PATH`: Path to model checkpoint file (.pt) [REQUIRED]
+- `--repo-id ID`: Hugging Face repo ID (format: `username/repo-name`) [REQUIRED]
+- `--token TOKEN`: Hugging Face API token (uses HF_TOKEN env var if not set)
+- `--private`: Make repository private (default: public)
+- `--description TEXT`: Custom model description
+- `--help`: Show help message
+
+**Setup:**
+1. Create a Hugging Face account: https://huggingface.co
+2. Create access token: https://huggingface.co/settings/tokens
+3. Set environment variable:
+   ```bash
+   export HF_TOKEN='your_token_here'
+   ```
+
+**What it does:**
+- Creates or updates Hugging Face repository
+- Uploads model checkpoint as `model.pt`
+- Generates and uploads model card (README.md)
+- Uploads training metadata (metadata.json)
+- Makes model accessible via Hugging Face Hub API
+
+---
+
+### �🔮 `inference.sh` - Model Inference
 Run translation inference on input data.
 
 ```bash
@@ -257,7 +305,15 @@ bash scripts/inference.sh \
     --beam-size 5
 ```
 
-### 6️⃣ Project Maintenance
+### 6️⃣ Model Deployment
+```bash
+# Upload to Hugging Face
+bash scripts/upload.sh \
+    --checkpoint checkpoints_bidirectional/best_model.pt \
+    --repo-id username/vn-zh-translation
+```
+
+### 7️⃣ Project Maintenance
 ```bash
 bash scripts/utils.sh info      # Check project status
 bash scripts/utils.sh verify    # Verify structure
@@ -292,6 +348,9 @@ bash scripts/utils.sh clean     # Clean cache
 Optional environment variables:
 
 ```bash
+# Hugging Face API token for model uploads
+export HF_TOKEN='hf_xxxxxxxxxxxxx'
+
 # Use specific GPU
 export CUDA_VISIBLE_DEVICES=0
 
