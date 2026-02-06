@@ -72,6 +72,35 @@ class WarmupInverseSqrtScheduler:
         """Get current learning rate."""
         return self.optimizer.param_groups[0]["lr"]
 
+    def state_dict(self) -> Dict[str, Any]:
+        """Return scheduler state for checkpointing."""
+        return {
+            "warmup_steps": self.warmup_steps,
+            "lr_base": self.lr_base,
+            "step_num": self.step_num,
+        }
+
+    def load_state_dict(self, state: Dict[str, Any]):
+        """Load scheduler state from checkpoint.
+
+        This will set the internal counters and update optimizer's learning
+        rate to match the saved step.
+        """
+        self.warmup_steps = int(state.get("warmup_steps", self.warmup_steps))
+        self.lr_base = float(state.get("lr_base", self.lr_base))
+        self.step_num = int(state.get("step_num", self.step_num))
+
+        # Compute LR corresponding to the restored step and apply to optimizer
+        if self.step_num <= 0:
+            lr = 0.0
+        elif self.step_num <= self.warmup_steps:
+            lr = self.lr_base * self.step_num / self.warmup_steps
+        else:
+            lr = self.lr_base * math.sqrt(self.warmup_steps) / math.sqrt(self.step_num)
+
+        for group in self.optimizer.param_groups:
+            group["lr"] = lr
+
 
 @dataclass
 class BeamSearchHypothesis:
