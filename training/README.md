@@ -65,6 +65,13 @@ The training pipeline is organized into the following modules:
 - Periodic checkpoint saving every N epochs
 - Best model selection based on validation loss
 - State dict includes config and tokenizer for reproducibility
+- **Metadata Recording**: Best model checkpoint automatically saves:
+  - Training loss, validation loss, BLEU score
+  - Learning rate at best epoch, scheduler state
+- **Resume Support**: When resuming training, automatically:
+  - Loads and displays previous training metrics
+  - Restores best metrics to prevent incorrect updates
+  - Supports `--epochs` and `--lr` overrides
 
 ## Usage
 
@@ -95,7 +102,30 @@ python -m training.main --skip_training
 
 # Custom base directory
 python -m training.main --base_dir /path/to/data
+
+# Training with custom epochs
+python -m training.main --epochs 50
+
+# Training with custom learning rate
+python -m training.main --lr 0.0001
+
+# Training with both epochs and learning rate
+python -m training.main --epochs 50 --lr 0.0001
+
+# Resume from checkpoint
+python -m training.main --resume_checkpoint checkpoints_bidirectional/best_model.pt
+
+# Resume with additional epochs
+python -m training.main --resume_checkpoint checkpoints_bidirectional/best_model.pt --epochs 50
+
+# Resume with different learning rate
+python -m training.main --resume_checkpoint checkpoints_bidirectional/best_model.pt --lr 0.0001
+
+# Resume with both overrides
+python -m training.main --resume_checkpoint checkpoints_bidirectional/best_model.pt --epochs 50 --lr 0.0001
 ```
+
+**Note**: `--epochs` and `--lr` parameters can be used with any training mode (new training or resume)
 
 ### Custom Training
 

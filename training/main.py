@@ -179,6 +179,8 @@ def train_translation_model(
     valid_loader: DataLoader,
     tokenizer_payload: Dict[str, Any],
     resume_checkpoint: str = None,
+    override_epochs: int = None,
+    override_lr: float = None,
 ) -> Dict[str, Any]:
     """
     Train translation model.
@@ -191,6 +193,8 @@ def train_translation_model(
         valid_loader: Validation dataloader
         tokenizer_payload: Tokenizer payload
         resume_checkpoint: Optional checkpoint to resume from
+        override_epochs: Optional epochs to override config
+        override_lr: Optional learning rate to override config
         
     Returns:
         Training statistics
@@ -199,8 +203,45 @@ def train_translation_model(
     print("Starting Translation Model Training")
     print("="*80 + "\n")
     
+    # Load checkpoint metadata if resuming
+    resume_start_epoch = 1
+    checkpoint_metadata = {}
+    
+    if resume_checkpoint and os.path.exists(resume_checkpoint):
+        print(f"📂 Loading metadata from checkpoint: {resume_checkpoint}")
+        checkpoint = torch.load(resume_checkpoint, map_location=config.device, weights_only=False)
+        
+        # Extract metadata
+        if "metadata" in checkpoint:
+            checkpoint_metadata = checkpoint["metadata"]
+            resume_start_epoch = checkpoint_metadata.get("epoch", 0) + 1
+            
+            print(f"  ✓ Previous training metrics:")
+            print(f"    - Train Loss: {checkpoint_metadata.get('train_loss', 'N/A'):.4f}" if isinstance(checkpoint_metadata.get('train_loss'), (int, float)) else f"    - Train Loss: {checkpoint_metadata.get('train_loss', 'N/A')}")
+            print(f"    - Val Loss: {checkpoint_metadata.get('val_loss', 'N/A'):.4f}" if isinstance(checkpoint_metadata.get('val_loss'), (int, float)) else f"    - Val Loss: {checkpoint_metadata.get('val_loss', 'N/A')}")
+            print(f"    - Val BLEU: {checkpoint_metadata.get('val_bleu', 'N/A'):.2f}" if isinstance(checkpoint_metadata.get('val_bleu'), (int, float)) else f"    - Val BLEU: {checkpoint_metadata.get('val_bleu', 'N/A')}")
+            print(f"    - Learning Rate: {checkpoint_metadata.get('lr', 'N/A'):.6f}" if isinstance(checkpoint_metadata.get('lr'), (int, float)) else f"    - Learning Rate: {checkpoint_metadata.get('lr', 'N/A')}")
+    
     trainer = Trainer(model, config, tokenizer_payload)
     
+    # Handle learning rate override
+    if override_lr is not None:
+        print(f"\n📝 Overriding learning rate: {config.lr_base} → {override_lr}")
+        config.lr_base = override_lr
+        # Update optimizer learning rate
+        for param_group in trainer.optimizer.param_groups:
+            param_group['lr'] = override_lr
+        # Update scheduler with new base lr
+        trainer.scheduler = WarmupInverseSqrtScheduler(
+            trainer.optimizer,
+            config.warmup_steps,
+            override_lr
+        )
+    
+    # Handle epochs override
+    if override_epochs is not None:
+        print(f"📝 Overriding num_epochs: {config.num_epochs} → {override_epochs}")
+        config.num_epochs = override_epochs
     # Load optimizer and scheduler state if resuming
     if resume_checkpoint and os.path.exists(resume_checkpoint):
         checkpoint = torch.load(resume_checkpoint, map_location=config.device, weights_only=False)
@@ -239,6 +280,16 @@ def train_translation_model(
                     )
                 else:
                     print("✓ Optimizer state loaded successfully")
+                    # Update scheduler if it was saved
+                    if "scheduler_state_dict" in checkpoint:
+                        try:
+                            trainer.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+                            print("✓ Scheduler state loaded successfully")
+                        except Exception as e:
+                            print(f"⚠️  Failed to load scheduler state: {e}. Reinitializing scheduler.")
+                            trainer.scheduler = WarmupInverseSqrtScheduler(
+                                trainer.optimizer, config.warmup_steps, config.lr_base
+                            )
             except Exception as e:
                 print(f"⚠️  Failed to load optimizer state: {e}. Reinitializing optimizer and scheduler.")
                 import torch.optim as optim
@@ -253,6 +304,12 @@ def train_translation_model(
                     trainer.optimizer, config.warmup_steps, config.lr_base
                 )
     
+    # Restore best metrics from checkpoint if resuming
+    if checkpoint_metadata:
+        trainer.best_val_loss = checkpoint_metadata.get("val_loss", float("inf"))
+        trainer.best_val_bleu = checkpoint_metadata.get("val_bleu", 0.0)
+        print(f"\n✓ Best metrics restored from checkpoint")
+    
     stats = trainer.train(train_dataset, valid_loader, sp_model)
     
     return stats
@@ -263,6 +320,8 @@ def main(
     force_reprocess: bool = False,
     skip_training: bool = False,
     resume_checkpoint: str = None,
+    epochs: int = None,
+    lr: float = None,
 ):
     """
     Main training pipeline.
@@ -272,6 +331,8 @@ def main(
         force_reprocess: Force reprocessing of data
         skip_training: Skip training and only process data
         resume_checkpoint: Path to checkpoint to resume training from
+        epochs: Override number of epochs (only when resuming)
+        lr: Override learning rate (only when resuming)
     """
     # Set random seeds
     set_seed(42)
@@ -309,6 +370,15 @@ def main(
     print(f"Config device: {config.device}")
     print(f"Vocab size will be: {config.vocab_size}")
     print(f"Max sequence length: {config.max_len}")
+    
+    # Apply parameter overrides if provided
+    if epochs is not None:
+        print(f"\n📝 Overriding num_epochs: {config.num_epochs} → {epochs}")
+        config.num_epochs = epochs
+    
+    if lr is not None:
+        print(f"📝 Overriding learning rate: {config.lr_base} → {lr}")
+        config.lr_base = lr
     
     # Step 1: Prepare data
     print("\n" + "="*80)
@@ -354,7 +424,15 @@ def main(
         print("✓ Model state loaded successfully")
     
     train_stats = train_translation_model(
-        model, config, sp_model, train_dataset, valid_loader, tokenizer_payload, resume_checkpoint
+        model, 
+        config, 
+        sp_model, 
+        train_dataset, 
+        valid_loader, 
+        tokenizer_payload, 
+        resume_checkpoint,
+        override_epochs=epochs,
+        override_lr=lr,
     )
     
     print("\n" + "="*80)
@@ -375,6 +453,8 @@ if __name__ == "__main__":
     parser.add_argument("--force_reprocess", action="store_true", help="Force data reprocessing")
     parser.add_argument("--skip_training", action="store_true", help="Skip model training")
     parser.add_argument("--resume_checkpoint", type=str, default=None, help="Path to checkpoint to resume training from")
+    parser.add_argument("--epochs", type=int, default=None, help="Override number of epochs (requires --resume_checkpoint)")
+    parser.add_argument("--lr", type=float, default=None, help="Override learning rate (requires --resume_checkpoint)")
     
     args = parser.parse_args()
     
@@ -383,4 +463,6 @@ if __name__ == "__main__":
         force_reprocess=args.force_reprocess,
         skip_training=args.skip_training,
         resume_checkpoint=args.resume_checkpoint,
+        epochs=args.epochs,
+        lr=args.lr,
     )

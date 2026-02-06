@@ -5,28 +5,8 @@ from model.layers.FFN import FFN_SwiGLU
 from model.layers.GQA_with_RoPE import GroupedQueryAttentionRoPE
 
 class DecoderLayer(nn.Module):
-    def __init__(self, config_or_d_model, n_heads=None, n_kv_heads=None, d_ff=None, dropout=None, rope_base=None):
-        """
-        Flexible constructor that accepts either:
-          - (config: RopeConfig)  -- notebook style
-          - (d_model, n_heads, n_kv_heads, d_ff, dropout, rope_base)  -- arg style
-        """
+    def __init__(self, d_model, n_heads, n_kv_heads, d_ff, dropout, rope_base):
         super().__init__()
-        
-        # Determine construction mode
-        if hasattr(config_or_d_model, 'd_model'):
-            # Config-style (notebook)
-            config = config_or_d_model
-            d_model = config.d_model
-            n_heads = config.n_heads
-            n_kv_heads = config.n_kv_heads
-            d_ff = config.d_ff
-            dropout = config.dropout
-            rope_base = config.rope_base
-        else:
-            # Arg-style (backward compat)
-            d_model = config_or_d_model
-        
         self.ln1 = RMSNorm(d_model)
         self.self_attn = GroupedQueryAttentionRoPE(
             d_model, n_heads, n_kv_heads, dropout, rope_base)

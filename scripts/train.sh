@@ -16,6 +16,9 @@ NC='\033[0m' # No Color
 # Default values
 SKIP_TRAINING=false
 FORCE_REPROCESS=false
+RESUME_FROM=""
+OVERRIDE_EPOCHS=""
+OVERRIDE_LR=""
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -33,15 +36,16 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --epochs)
-            NUM_EPOCHS="$2"
-            shift 2
-            ;;
-        --batch-size)
-            BATCH_SIZE="$2"
+            OVERRIDE_EPOCHS="$2"
             shift 2
             ;;
         --lr)
-            LR="$2"
+            OVERRIDE_LR="$2"
+            shift 2
+            ;;
+        --batch-size)
+            echo -e "${YELLOW}⚠️  Note: --batch-size is no longer supported.${NC}"
+            echo "Batch size is configured in training/config.py instead."
             shift 2
             ;;
         --help)
@@ -51,19 +55,21 @@ while [[ $# -gt 0 ]]; do
             echo "  --skip-training           Skip model training (data processing only)"
             echo "  --force-reprocess         Force reprocessing of all data"
             echo "  --resume CHECKPOINT       Resume training from checkpoint"
+            echo "  --epochs N                Override number of epochs (only with --resume)"
+            echo "  --lr RATE                 Override learning rate (only with --resume)"
             echo "  --help                    Show this help message"
             echo ""
-            echo "Customizing Hyperparameters:"
-            echo "  Edit training/config.py to change epochs, batch_size, and learning rate"
+            echo "Examples:"
+            echo "  bash train.sh"
+            echo "  bash train.sh --resume checkpoints_bidirectional/best_model.pt"
+            echo "  bash train.sh --resume checkpoints_bidirectional/best_model.pt --epochs 50"
+            echo "  bash train.sh --resume checkpoints_bidirectional/best_model.pt --epochs 50 --lr 0.0001"
+            echo ""
+            echo "Customizing Base Hyperparameters:"
+            echo "  Edit training/config.py to change base epochs, batch_size, and learning rate"
             echo "  Example: RopeConfig(num_epochs=40, batch_size=128, lr=0.0002)"
             echo ""
             exit 0
-            ;;
-        --epochs|--batch-size|--lr)
-            echo -e "${YELLOW}⚠️  Note: These options are no longer supported.${NC}"
-            echo "Hyperparameters are configured in training/config.py instead."
-            echo "Edit that file to customize training settings."
-            exit 1
             ;;
         *)
             echo "Unknown option: $1"
@@ -98,13 +104,22 @@ echo ""
 echo -e "${YELLOW}Training Configuration:${NC}"
 echo "  Skip training:    $SKIP_TRAINING"
 echo "  Force reprocess:  $FORCE_REPROCESS"
+if [ -n "$RESUME_FROM" ]; then
+    echo "  Resume from:      $RESUME_FROM"
+fi
+if [ -n "$OVERRIDE_EPOCHS" ]; then
+    echo "  Override epochs:  $OVERRIDE_EPOCHS"
+fi
+if [ -n "$OVERRIDE_LR" ]; then
+    echo "  Override lr:      $OVERRIDE_LR"
+fi
 echo ""
-echo -e "${YELLOW}Note:${NC} Hyperparameters (epochs, batch_size, lr) are configured in training/config.py"
+echo -e "${YELLOW}Note:${NC} Base hyperparameters (epochs, batch_size, lr) are configured in training/config.py"
 echo ""
 
 # Build Python command
-# Note: Hyperparameters (epochs, batch_size, lr) are configured in training/config.py
-# The CLI only supports the following arguments: --base_dir, --force_reprocess, --skip_training, --resume_checkpoint
+# Hyperparameters (epochs, batch_size, lr) can be overridden for any training mode
+# The CLI supports: --base_dir, --force_reprocess, --skip_training, --resume_checkpoint, --epochs, --lr
 PYTHON_CMD="python -m training.main --base_dir ."
 
 if [ "$SKIP_TRAINING" = true ]; then
@@ -117,6 +132,15 @@ fi
 
 if [ -n "$RESUME_FROM" ]; then
     PYTHON_CMD="$PYTHON_CMD --resume_checkpoint $RESUME_FROM"
+fi
+
+# Add optional override parameters (valid for any training mode)
+if [ -n "$OVERRIDE_EPOCHS" ]; then
+    PYTHON_CMD="$PYTHON_CMD --epochs $OVERRIDE_EPOCHS"
+fi
+
+if [ -n "$OVERRIDE_LR" ]; then
+    PYTHON_CMD="$PYTHON_CMD --lr $OVERRIDE_LR"
 fi
 
 # Run training

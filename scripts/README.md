@@ -30,24 +30,50 @@ bash scripts/train.sh
 # Data processing only (no training)
 bash scripts/train.sh --skip-training
 
-# Custom configuration
-bash scripts/train.sh --epochs 60 --batch-size 256 --lr 0.0001
-
 # Force reprocessing of data
 bash scripts/train.sh --force-reprocess
 
-# Resume from checkpoint
-bash scripts/train.sh --resume checkpoints_bidirectional/checkpoint_20.pt
+# Training with custom epochs
+bash scripts/train.sh --epochs 60
+
+# Training with custom learning rate
+bash scripts/train.sh --lr 0.0001
+
+# Training with both custom epochs and learning rate
+bash scripts/train.sh --epochs 60 --lr 0.00015
+
+# Resume from checkpoint (with metadata auto-loading)
+bash scripts/train.sh --resume checkpoints_bidirectional/best_model.pt
+
+# Resume and continue training for more epochs
+bash scripts/train.sh --resume checkpoints_bidirectional/best_model.pt --epochs 50
+
+# Resume with adjusted learning rate (for fine-tuning)
+bash scripts/train.sh --resume checkpoints_bidirectional/best_model.pt --lr 0.0001
+
+# Resume with both custom epochs and learning rate
+bash scripts/train.sh --resume checkpoints_bidirectional/best_model.pt --epochs 60 --lr 0.00015
 ```
 
 **Options:**
 - `--skip-training`: Data processing only, skip model training
 - `--force-reprocess`: Force reprocessing of all data (ignore cache)
-- `--resume CHECKPOINT`: Resume training from checkpoint
-- `--epochs NUM`: Number of epochs (default: 40)
-- `--batch-size SIZE`: Batch size (default: 128)
-- `--lr LEARNING_RATE`: Learning rate (default: 0.0002)
+- `--resume CHECKPOINT`: Resume training from checkpoint (auto-loads metadata)
+- `--epochs NUM`: Override number of epochs (for new or resumed training)
+- `--lr LEARNING_RATE`: Override learning rate (for new or resumed training)
 - `--help`: Show help message
+
+**Resume Behavior:**
+When resuming, the system automatically:
+- Loads and displays previous training metrics (loss, BLEU, lr)
+- Restores best model metrics to prevent incorrect updates
+- Loads optimizer and scheduler state from checkpoint
+- Applies any `--epochs` or `--lr` overrides if provided
+
+**Parameter Override:**
+You can override epochs and learning rate for any training:
+- New training: `bash train.sh --epochs 50 --lr 0.0001`
+- Resumed training: `bash train.sh --resume best_model.pt --epochs 50 --lr 0.0001`
 
 **Output:**
 - Model checkpoints: `checkpoints_bidirectional/`

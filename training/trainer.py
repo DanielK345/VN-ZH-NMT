@@ -116,7 +116,7 @@ class Trainer:
         is_best: bool = False,
     ) -> str:
         """
-        Save model checkpoint.
+        Save model checkpoint with metadata.
         
         Args:
             epoch: Epoch number
@@ -128,15 +128,27 @@ class Trainer:
         Returns:
             Path to saved checkpoint
         """
+        # Get current learning rate
+        current_lr = self.scheduler.get_lr()
+        
         checkpoint = {
             "epoch": epoch,
             "model_state_dict": self.model.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
+            "scheduler_state_dict": self.scheduler.state_dict(),
             "train_loss": train_loss,
             "val_loss": val_loss,
             "val_bleu": val_bleu,
             "config": self.config,
             "tokenizer": self.tokenizer_payload,
+            # Metadata for best model
+            "metadata": {
+                "train_loss": train_loss,
+                "val_loss": val_loss,
+                "val_bleu": val_bleu,
+                "lr": current_lr,
+                "epoch": epoch,
+            }
         }
 
         if is_best:
